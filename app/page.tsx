@@ -159,17 +159,39 @@ function AttentionView({ selected, setSelected }: { selected: TermKey; setSelect
 
 function HompView({ selected, setSelected }: { selected: TermKey; setSelected: (id: TermKey) => void }) {
   const [step, setStep] = useState(0);
+  const [activeChannel, setActiveChannel] = useState(1);
+  const [activeSender, setActiveSender] = useState(0);
+  const [features, setFeatures] = useState([[1, -.1], [1, .3], [-.1, .9]]);
+  const [senderWeights, setSenderWeights] = useState([[.7, .3], [.8, .2], [.25, .75]]);
+  const [channelWeights, setChannelWeights] = useState([.25, .55, .2]);
   const stages: { n: string; label: string; terms: TermKey[] }[] = [{ n: "01", label: "construct", terms: ["messageFn", "message"] }, { n: "02", label: "gather inside 𝒩ₖ", terms: ["neighborAttention", "intra"] }, { n: "03", label: "merge channel types", terms: ["channelAttention", "inter"] }, { n: "04", label: "update receiver", terms: ["update"] }];
-  const channels = [
-    { name: "incidence", short: "𝒩₁", color: "cyan", messages: [.9, -.2], weights: [.7, .3], channelWeight: .25 },
-    { name: "upper adjacency", short: "𝒩₂", color: "pink", messages: [1.1, .4], weights: [.8, .2], channelWeight: .55 },
-    { name: "temporal", short: "𝒩₃", color: "violet", messages: [-.3, .7], weights: [.25, .75], channelWeight: .2 },
+  const oldState = .5;
+  const channelDefs = [
+    { name: "incidence", short: "𝒩₁", color: "cyan", bias: 0, senders: ["e₁", "e₃"], evidence: ["shares vertex v₂", "shares vertex v₃"] },
+    { name: "upper adjacency", short: "𝒩₂", color: "pink", bias: .2, senders: ["e₄", "e₅"], evidence: ["coface f₁₂₃", "coface f₂₃₄"] },
+    { name: "temporal", short: "𝒩₃", color: "violet", bias: -.1, senders: ["x[t−1]", "x[t−2]"], evidence: ["one-step lag", "two-step lag"] },
   ];
+  const channels = channelDefs.map((channel, c) => ({
+    ...channel,
+    messages: features[c].map(value => pretty(value - .2 * oldState + channel.bias)),
+    weights: senderWeights[c],
+    channelWeight: channelWeights[c],
+  }));
   const channelSums = channels.map(channel => pretty(channel.messages.reduce((sum, message, i) => sum + message * channel.weights[i], 0)));
   const merged = pretty(channelSums.reduce((sum, message, i) => sum + message * channels[i].channelWeight, 0));
-  const oldState = .5;
   const newState = pretty(Math.tanh(oldState + merged));
+  const active = channels[activeChannel];
+  const activeMessage = active.messages[activeSender];
+  const activeWeightedMessage = pretty(activeMessage * active.weights[activeSender]);
   const choose = (index: number) => { setStep(index); setSelected(stages[index].terms[0]); };
+  const chooseDatum = (channel: number, sender: number, term: TermKey = "neighborAttention") => { setActiveChannel(channel); setActiveSender(sender); setSelected(term); };
+  const updateFeature = (value: number) => setFeatures(previous => previous.map((row, c) => c === activeChannel ? row.map((item, s) => s === activeSender ? value : item) : row));
+  const updateSenderWeight = (value: number) => setSenderWeights(previous => previous.map((row, c) => c === activeChannel ? row.map((_, s) => s === activeSender ? value : pretty(1 - value)) : row));
+  const updateChannelWeight = (value: number) => setChannelWeights(previous => {
+    const otherTotal = previous.reduce((sum, item, index) => index === activeChannel ? sum : sum + item, 0);
+    return previous.map((item, index) => index === activeChannel ? value : pretty((1 - value) * (otherTotal ? item / otherTotal : .5)));
+  });
+  const resetDataset = () => { setFeatures([[1, -.1], [1, .3], [-.1, .9]]); setSenderWeights([[.7, .3], [.8, .2], [.25, .75]]); setChannelWeights([.25, .55, .2]); setActiveChannel(1); setActiveSender(0); };
   return <div className="work-area homp-area">
     <div className="step-strip" role="tablist" aria-label="HOMP stages">{stages.map((item, index) => <button key={item.n} type="button" className={step === index ? "active" : ""} onClick={() => choose(index)}><span>{item.n}</span>{item.label}</button>)}</div>
     <div className="homp-equations">
@@ -188,21 +210,33 @@ function HompView({ selected, setSelected }: { selected: TermKey; setSelected: (
             <text className="channel-name" x="35" y={39 + c * 112}>{channel.short} · {channel.name} · b={channel.channelWeight}</text>
             {channel.messages.map((message, n) => {
               const x = 126 + n * 168; const y = 72 + c * 112;
-              return <g key={n} className="homp-sender" onClick={() => setSelected(step === 0 ? "message" : "neighborAttention")}><circle cx={x} cy={y} r="29"/><text x={x} y={y - 4}>y{c * 2 + n + 1}</text><text className="toy-value" x={x} y={y + 14}>m={message}</text><line x1={x + 32} y1={y} x2="554" y2="180" style={{ strokeWidth: 2 + channel.weights[n] * 7 }} markerEnd="url(#homp-arrow)"/><text className="route-weight" x={(x + 554) / 2} y={(y + 180) / 2 - 6}>a={channel.weights[n]}</text></g>;
+              return <g key={n} className={`homp-sender ${c === activeChannel && n === activeSender ? "selected-datum" : ""}`} onClick={() => chooseDatum(c, n, step === 0 ? "message" : "neighborAttention")}><circle cx={x} cy={y} r="29"/><text x={x} y={y - 4}>{channel.senders[n]}</text><text className="toy-value" x={x} y={y + 14}>h={features[c][n]} · m={message}</text><line x1={x + 32} y1={y} x2="554" y2="180" style={{ strokeWidth: 2 + channel.weights[n] * 7 }} markerEnd="url(#homp-arrow)"/><text className="route-weight" x={(x + 554) / 2} y={(y + 180) / 2 - 6}>a={channel.weights[n]}</text></g>;
             })}
             <g className="channel-sum" onClick={() => setSelected("intra")}><rect x="378" y={47 + c * 112} width="76" height="43" rx="9"/><text x="416" y={65 + c * 112}>mˣ{c + 1}</text><text className="toy-value" x="416" y={81 + c * 112}>{channelSums[c]}</text></g>
           </g>)}
           <g className="homp-receiver" onClick={() => setSelected(step === 3 ? "update" : "inter")}><circle cx="606" cy="180" r="59"/><text x="606" y="165">receiver x</text><text className="toy-value" x="606" y="185">hˡ = {oldState}</text><text className="toy-result" x="606" y="207">hˡ⁺¹ = {newState}</text></g>
         </svg>
         <div className="homp-ledger">
-          <button type="button" className={step === 0 ? "active" : ""} onClick={() => choose(0)}><span>construct</span><b>mₓ,y₂ = −0.20</b><small>typed content from sender y₂</small></button>
-          <button type="button" className={step === 1 ? "active" : ""} onClick={() => choose(1)}><span>within channels</span><b>mₓ² = .8·1.1 + .2·.4 = {channelSums[1]}</b><small>attention, then sum inside 𝒩₂</small></button>
+          <button type="button" className={step === 0 ? "active" : ""} onClick={() => choose(0)}><span>construct</span><b>mₓ,{active.senders[activeSender]} = {activeMessage}</b><small>computed from the selected dataset row</small></button>
+          <button type="button" className={step === 1 ? "active" : ""} onClick={() => choose(1)}><span>within channels</span><b>mₓ{activeChannel + 1} = {active.weights[0]}·{active.messages[0]} + {active.weights[1]}·{active.messages[1]} = {channelSums[activeChannel]}</b><small>attention, then sum inside {active.short}</small></button>
           <button type="button" className={step === 2 ? "active" : ""} onClick={() => choose(2)}><span>between channels</span><b>mₓ = Σ bᵏmₓᵏ = {merged}</b><small>𝒩₂ gets the largest channel gate</small></button>
           <button type="button" className={step === 3 ? "active" : ""} onClick={() => choose(3)}><span>update</span><b>tanh({oldState} + {merged}) = {newState}</b><small>write the merged message into x</small></button>
         </div>
       </div>
     </section>
-    <div className="attention-ring"><span><MathTerm id="channelAttention" selected={selected} onSelect={setSelected} compact>bᵏ</MathTerm> chooses the neighborhood type</span><div className="channel-row"><div><b>𝒩₁</b><small>incidence</small></div><div className="chosen"><b>𝒩₂</b><small>upper adjacency</small></div><div><b>𝒩₃</b><small>temporal</small></div></div><div className="inner-ring"><span><MathTerm id="neighborAttention" selected={selected} onSelect={setSelected} compact>aᵏ(x,y)</MathTerm> chooses a sender inside 𝒩₂</span><div className="neighbor-dots"><i/><i className="hot"/><i/><i/></div></div></div>
+    <section className="homp-dataset" aria-label="Editable synthetic HOMP dataset">
+      <div className="dataset-heading"><div><p className="eyebrow">THE ACTUAL DATASET</p><h3>Six permitted sender → receiver records</h3><p>Receiver <b>x=e₂</b> has state <b>hₓ={oldState}</b>. Message rule: <b>mₓ,y = hᵧ − 0.2hₓ + relation bias</b>.</p></div><button type="button" onClick={resetDataset}>reset dataset</button></div>
+      <div className="dataset-table-wrap"><table><thead><tr><th>channel k</th><th>sender y</th><th>why y∈𝒩ₖ(x)</th><th>hᵧ</th><th>mₓ,y</th><th>aᵏ(x,y)</th><th>aᵏm</th><th>bᵏ</th></tr></thead><tbody>{channels.flatMap((channel, c) => channel.messages.map((message, s) => <tr key={`${c}-${s}`} tabIndex={0} role="button" className={c === activeChannel && s === activeSender ? "active" : ""} onClick={() => chooseDatum(c, s)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); chooseDatum(c, s); } }}><td><i className={`data-dot ${channel.color}`}/>{channel.short} {channel.name}</td><td>{channel.senders[s]}</td><td>{channel.evidence[s]}</td><td>{features[c][s]}</td><td>{message}</td><td>{channel.weights[s]}</td><td>{pretty(message * channel.weights[s])}</td><td>{channel.channelWeight}</td></tr>))}</tbody></table></div>
+      <div className="dataset-workbench">
+        <div className="dataset-selector"><span>selected record</span><b>{active.short} · {active.senders[activeSender]} → x</b><small>{active.evidence[activeSender]}</small><div className="sender-pick">{channels.map((channel, c) => <div key={channel.name}><strong>{channel.short}</strong>{channel.senders.map((sender, s) => <button type="button" key={sender} className={c === activeChannel && s === activeSender ? "active" : ""} onClick={() => chooseDatum(c, s)}>{sender}</button>)}</div>)}</div></div>
+        <div className="data-sliders">
+          <label><span>sender feature hᵧ <b>{features[activeChannel][activeSender]}</b></span><input aria-label="Selected sender feature" type="range" min="-1" max="1.5" step="0.05" value={features[activeChannel][activeSender]} onChange={event => updateFeature(Number(event.target.value))}/></label>
+          <label><span>within-channel aᵏ <b>{active.weights[activeSender]}</b></span><input aria-label="Selected sender attention" type="range" min="0" max="1" step="0.05" value={active.weights[activeSender]} onChange={event => updateSenderWeight(Number(event.target.value))}/></label>
+          <label><span>between-channel bᵏ <b>{active.channelWeight}</b></span><input aria-label="Selected channel attention" type="range" min="0" max="1" step="0.05" value={active.channelWeight} onChange={event => updateChannelWeight(Number(event.target.value))}/></label>
+        </div>
+        <div className="datum-calculation"><span>selected row</span><b>m = {features[activeChannel][activeSender]} − 0.2·{oldState} {active.bias >= 0 ? "+" : "−"} {Math.abs(active.bias)} = {activeMessage}</b><em>a·m = {active.weights[activeSender]}·{activeMessage} = {activeWeightedMessage}</em><hr/><span>channel → receiver</span><b>mₓ{activeChannel + 1} = {channelSums[activeChannel]}</b><em>b·mᵏ = {active.channelWeight}·{channelSums[activeChannel]} = {pretty(active.channelWeight * channelSums[activeChannel])}</em><strong>all channels: mₓ={merged} → hₓ′={newState}</strong></div>
+      </div>
+    </section>
   </div>;
 }
 
