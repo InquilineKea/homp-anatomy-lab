@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 
-type Lens = "sandwich" | "attention" | "homp" | "raiseLower" | "dynamics";
-type TermKey = "G" | "H" | "W" | "K" | "hadamard" | "A" | "transpose" | "messageFn" | "message" | "neighborAttention" | "intra" | "channelAttention" | "inter" | "update" | "boundary" | "coboundary" | "lowerLap" | "upperLap" | "hodge" | "harmonic" | "restriction" | "extension" | "derivative" | "localDynamics" | "gate" | "transport" | "flux" | "memory" | "source" | "sink" | "rank" | "timescale" | "stalk";
+type Lens = "sandwich" | "attention" | "homp" | "gccn" | "raiseLower" | "dynamics";
+type TermKey = "G" | "H" | "W" | "K" | "hadamard" | "A" | "transpose" | "messageFn" | "message" | "neighborAttention" | "intra" | "channelAttention" | "inter" | "update" | "complex" | "viewGraph" | "subtensor" | "omega" | "rankAggregate" | "layer" | "readout" | "boundary" | "coboundary" | "lowerLap" | "upperLap" | "hodge" | "harmonic" | "restriction" | "extension" | "derivative" | "localDynamics" | "gate" | "transport" | "flux" | "memory" | "source" | "sink" | "rank" | "timescale" | "stalk";
 
 type TermInfo = { symbol: string; name: string; family: string; meaning: string; action: string; contrast: string; color: string };
 
@@ -22,6 +22,13 @@ const termInfo: Record<TermKey, TermInfo> = {
   channelAttention: { symbol: "bᵏ", name: "between-neighborhood attention", family: "attention · which relation matters", meaning: "Weights an entire communication channel such as incidence, upper adjacency, or temporal coupling.", action: "Answers: should x rely more on synaptic, assembly, anatomical, or another neighborhood type?", contrast: "This second attention level is particular to multi-neighborhood higher-order message passing.", color: "orange" },
   inter: { symbol: "⊗", name: "inter-neighborhood aggregation", family: "HOMP · merge channels", meaning: "Combines the already-aggregated outputs of different neighborhood types.", action: "May concatenate, sum, or use an ordered learned merge; it need not be permutation-invariant.", contrast: "This denotes a generic channel merge here—not necessarily a literal Kronecker product.", color: "green" },
   update: { symbol: "β(·,·)", name: "state update", family: "HOMP · writeback", meaning: "Combines the old state of x with the merged incoming message.", action: "Produces hₓ⁽ˡ⁺¹⁾, often through an MLP, gated update, normalization, or residual block.", contrast: "Aggregation decides what arrived; β decides how the receiver changes.", color: "pink" },
+  complex: { symbol: "𝒞", name: "one combinatorial complex", family: "GCCN · original domain", meaning: "The single higher-order object containing all cells and their ranks: nodes, edges, faces, or other cell types.", action: "Supplies the shared cell identities from which every neighborhood-specific graph view is derived.", contrast: "TopoTune does not begin with three unrelated datasets. The graph views are overlapping projections of this same complex.", color: "yellow" },
+  viewGraph: { symbol: "𝒢𝒩", name: "strictly augmented Hasse graph", family: "GCCN · one relation view", meaning: "A standard directed graph induced by one neighborhood rule 𝒩. Its graph-nodes are cells of 𝒞; its graph-edges are permitted 𝒩-relations.", action: "Turns one typed relation—node adjacency, edge adjacency, face→edge incidence, and so on—into a graph that an ordinary graph model can process.", contrast: "𝒢𝒩 is not the original complex and its graph-nodes need not be rank-0 nodes; an edge-cell or face-cell can become a node in this derived graph.", color: "cyan" },
+  subtensor: { symbol: "H𝒩ˡ", name: "view-specific feature slice", family: "GCCN · state on one graph view", meaning: "The rows of the global cell-feature matrix belonging to cells that occur in 𝒢𝒩 at layer l.", action: "Feeds the same cell’s current embedding into every graph view in which that cell participates.", contrast: "The subscript 𝒩 names a neighborhood view; the superscript l names network depth. Neither is the combinatorial rank.", color: "yellow" },
+  omega: { symbol: "ω𝒩", name: "neighborhood-specific processor", family: "GCCN · independent base model", meaning: "A learnable graph-to-graph feature map applied only to 𝒢𝒩 and H𝒩ˡ.", action: "May be GCN, GAT, GIN, GraphSAGE, Transformer, or another compatible model; different views may use separate parameters.", contrast: "ω𝒩 is an entire processing block, not merely the right-hand feature matrix W from K=GHW.", color: "pink" },
+  rankAggregate: { symbol: "⊗rank", name: "cell-aligned inter-neighborhood merge", family: "GCCN · synchronization", meaning: "Combines multiple view-specific proposals that refer to the same destination cell and rank.", action: "For edge e₂₃, it can merge an edge↔edge proposal with a face→edge proposal before writing one updated embedding for e₂₃.", contrast: "Despite the figure’s label ‘rank-level aggregation,’ this is not indiscriminate pooling of every edge. It aligns by cell identity, then merges channels targeting that cell.", color: "green" },
+  layer: { symbol: "l→l+1", name: "network-depth transition", family: "GCCN · repeated computation", meaning: "One complete expand/process/synchronize/update pass produces the states used by the next pass.", action: "After merging, the updated global cell matrix is sliced again into H𝒩ˡ for each view in the following GCCN layer.", contrast: "Layer number l is not topological rank. A rank-2 face may be processed at every neural-network layer.", color: "violet" },
+  readout: { symbol: "R", name: "task readout", family: "GCCN · prediction head", meaning: "Converts final cell embeddings into the requested prediction: graph/complex label, node label, edge score, or regression output.", action: "A graph-level task may pool cells or ranks; a cell-level task may read only the relevant rank.", contrast: "Readout happens after message passing. It should not be confused with rank-level synchronization inside every GCCN layer.", color: "purple" },
   boundary: { symbol: "Bₖ", name: "boundary / lowering operator", family: "rank map · k → k−1", meaning: "Sends each oriented k-cell to its signed collection of boundary faces.", action: "For edge signals, B₁ moves edge flow onto vertices as signed divergence. It changes rank, so it is not by itself an endomorphism of Cᵏ.", contrast: "This is an incidence map inside one complex—not a functorial push-forward between two spaces.", color: "cyan" },
   coboundary: { symbol: "Bₖᵀ", name: "coboundary / raising adjoint", family: "rank map · k−1 → k", meaning: "Reads the same incidence matrix in the opposite direction, lifting lower-rank values onto incident higher-rank cells.", action: "For vertex potentials, B₁ᵀ produces oriented edge differences: a discrete gradient.", contrast: "It is the adjoint of Bₖ under the chosen inner products; that does not make it a categorical pullback.", color: "pink" },
   lowerLap: { symbol: "Lₖ↓ = BₖᵀBₖ", name: "lower Hodge Laplacian", family: "round trip · down then up", meaning: "Compares k-cells through shared (k−1)-faces: edges meet through vertices, faces meet through edges.", action: "First lower with Bₖ, then raise with Bₖᵀ. The result acts back on the original rank k.", contrast: "The word lower describes the neighborhood used, not the final output rank.", color: "cyan" },
@@ -47,6 +54,7 @@ const lensNames: Record<Lens, { short: string; title: string; note: string }> = 
   sandwich: { short: "Operator sandwich", title: "One multiplication, two entirely different axes", note: "Left operators move information among cells; right operators remix the features inside each cell." },
   attention: { short: "Cross-rank attention", title: "Topology supplies the routes; attention reweights them", note: "The CC-attention block can move signals in both directions between unequal ranks without flattening the ranks together." },
   homp: { short: "HOMP pipeline", title: "Build → gather → merge → update", note: "HOMP has two nested aggregation levels: neighbors inside a relation, then relation-types around the receiver." },
+  gccn: { short: "GCCN pathway", title: "One complex → typed graph views → synchronized cell updates", note: "Unpack the TopoTune diagram into concrete cells: each view proposes an update, then proposals for the same underlying cell are aligned and merged." },
   raiseLower: { short: "Raise + lower", title: "Leave a rank, come back, then add the two routes", note: "A one-way incidence map changes rank. A Hodge operator closes the trip around rank k: down→up plus up→down." },
   dynamics: { short: "Multiscale dynamics", title: "Routing + translation + flux + memory", note: "A broader synthesis—not standard HOMP. It separates jobs that a homogeneous message-passing graph often blends together." },
 };
@@ -240,6 +248,93 @@ function HompView({ selected, setSelected }: { selected: TermKey; setSelected: (
   </div>;
 }
 
+function GccnView({ selected, setSelected }: { selected: TermKey; setSelected: (id: TermKey) => void }) {
+  const [stage, setStage] = useState(0);
+  const [activeView, setActiveView] = useState(1);
+  const [processor, setProcessor] = useState<"GCN" | "GAT" | "GIN">("GAT");
+  const [edgeMix, setEdgeMix] = useState(.55);
+  const stages: { label: string; plain: string; term: TermKey }[] = [
+    { label: "one complex", plain: "Start with one higher-order object.", term: "complex" },
+    { label: "make views", plain: "Expose one typed relation at a time.", term: "viewGraph" },
+    { label: "slice rows", plain: "Give each view its participating cells.", term: "subtensor" },
+    { label: "process", plain: "Run one base graph model per view.", term: "omega" },
+    { label: "synchronize", plain: "Merge proposals for the same cell.", term: "rankAggregate" },
+    { label: "repeat", plain: "Use the merged state in the next layer.", term: "layer" },
+    { label: "read out", plain: "Turn final cell states into a prediction.", term: "readout" },
+  ];
+  const views = [
+    { key: "𝒩₁", name: "node ↔ node", rank: "rank 0 only", rows: "v₁, v₂, v₃, v₄", question: "Which vertices share an edge?", color: "cyan" },
+    { key: "𝒩₂", name: "edge ↔ edge", rank: "rank 1 only", rows: "e₁₂, e₂₃, e₃₁, e₂₄, e₃₄", question: "Which edge-cells share an endpoint?", color: "pink" },
+    { key: "𝒩₃", name: "face → edge", rank: "rank 2 into rank 1", rows: "f₁₂₃, f₂₃₄, e₁₂, e₂₃, e₃₁, e₂₄, e₃₄", question: "Which face contains which edge?", color: "violet" },
+  ];
+  const gain = { GCN: .34, GAT: .46, GIN: .57 }[processor];
+  const oldEdge = .6;
+  const adjacencyProposal = pretty(Math.tanh(oldEdge + gain * 1.15));
+  const incidenceProposal = pretty(Math.tanh(oldEdge + gain * 1.7));
+  const mergedEdge = pretty(edgeMix * adjacencyProposal + (1 - edgeMix) * incidenceProposal);
+  const nextEdge = pretty(Math.tanh(mergedEdge + gain * .28));
+  const chooseStage = (index: number) => { setStage(index); setSelected(stages[index].term); };
+  return <div className={`work-area gccn-area gccn-stage-${stage}`}>
+    <div className="gccn-step-strip" role="tablist" aria-label="GCCN pathway stages">{stages.map((item, index) => <button key={item.label} type="button" className={stage === index ? "active" : ""} onClick={() => chooseStage(index)}><span>0{index + 1}</span><b>{item.label}</b><small>{item.plain}</small></button>)}</div>
+
+    <div className="gccn-equation" aria-label="Generalized combinatorial complex network layer">
+      <span className="equation-kicker">THE WHOLE FIGURE IN ONE LINE · CLICK A TERM</span>
+      <div>
+        <MathTerm id="subtensor" selected={selected} onSelect={setSelected}>H<sup>l+1</sup></MathTerm><span>= φ( H<sup>l</sup>,</span>
+        <MathTerm id="rankAggregate" selected={selected} onSelect={setSelected}>⊗<sub>𝒩∈𝒩𝒞</sub></MathTerm>
+        <MathTerm id="omega" selected={selected} onSelect={setSelected}>ω<sub>𝒩</sub>(</MathTerm>
+        <MathTerm id="subtensor" selected={selected} onSelect={setSelected}>H<sub>𝒩</sub><sup>l</sup></MathTerm><span>,</span>
+        <MathTerm id="viewGraph" selected={selected} onSelect={setSelected}>𝒢<sub>𝒩</sub></MathTerm><span>))</span>
+      </div>
+      <p><b>Read it:</b> “For each relation-view, process the participating cell rows; align outputs that name the same cell; merge them into one next-layer state.”</p>
+    </div>
+
+    <section className="gccn-origin" aria-label="Synthetic combinatorial complex dataset">
+      <div className="gccn-origin-copy"><span className="toy-badge">synthetic dataset</span><h3>One complex 𝒞—not three datasets</h3><p>Four vertices, five edges, and two filled faces. The center edge <b>e₂₃</b> is our tracer: it will reappear in two computational views while remaining one underlying cell.</p><button type="button" onClick={() => { setSelected("complex"); setStage(0); }}>select original complex</button></div>
+      <svg viewBox="0 0 390 235" role="img" aria-label="Two filled triangles sharing edge e23">
+        <polygon className="gccn-face face-a" points="45,190 177,32 191,190"/><polygon className="gccn-face face-b" points="191,190 177,32 345,158"/>
+        <g className="gccn-original-edges"><line x1="45" y1="190" x2="177" y2="32"/><line className="tracer" x1="177" y1="32" x2="191" y2="190"/><line x1="191" y1="190" x2="45" y2="190"/><line x1="177" y1="32" x2="345" y2="158"/><line x1="345" y1="158" x2="191" y2="190"/></g>
+        <g className="gccn-original-nodes"><circle cx="45" cy="190" r="11"/><circle cx="177" cy="32" r="11"/><circle cx="191" cy="190" r="11"/><circle cx="345" cy="158" r="11"/></g>
+        <g className="gccn-labels"><text x="34" y="218">v₁</text><text x="177" y="17">v₂</text><text x="191" y="218">v₃</text><text x="360" y="161">v₄</text><text x="108" y="102">e₁₂</text><text className="tracer-label" x="205" y="106">e₂₃ · hˡ=.60</text><text x="118" y="183">e₃₁</text><text x="266" y="83">e₂₄</text><text x="277" y="185">e₃₄</text><text x="112" y="145">f₁₂₃</text><text x="264" y="137">f₂₃₄</text></g>
+      </svg>
+    </section>
+
+    <section className="gccn-views" aria-label="Three graph views derived from the synthetic complex">
+      <div className="gccn-section-heading"><div><p className="eyebrow">EXPAND 𝒞 INTO TYPED GRAPH VIEWS</p><h3>The graph-nodes change meaning in each view</h3></div><p>Click a view. A circle in 𝒢<sub>𝒩₂</sub> can represent an <em>edge-cell</em>, not an original vertex.</p></div>
+      <div className="gccn-view-grid">{views.map((view, index) => <button type="button" key={view.key} className={`gccn-view-card view-${view.color} ${activeView === index ? "active" : ""}`} onClick={() => { setActiveView(index); setSelected("viewGraph"); setStage(1); }}>
+        <span><i>{view.key}</i>{view.name}</span><b>𝒢<sub>{view.key}</sub> · {view.rank}</b>
+        {index === 0 && <svg viewBox="0 0 230 125" aria-label="Vertex adjacency graph"><g className="mini-links"><line x1="28" y1="92" x2="99" y2="27"/><line x1="99" y1="27" x2="108" y2="94"/><line x1="108" y1="94" x2="28" y2="92"/><line x1="99" y1="27" x2="202" y2="73"/><line x1="202" y1="73" x2="108" y2="94"/></g><g className="mini-v-nodes"><circle cx="28" cy="92" r="13"/><circle cx="99" cy="27" r="13"/><circle cx="108" cy="94" r="13"/><circle cx="202" cy="73" r="13"/></g><g className="mini-text"><text x="28" y="96">v₁</text><text x="99" y="31">v₂</text><text x="108" y="98">v₃</text><text x="202" y="77">v₄</text></g></svg>}
+        {index === 1 && <svg viewBox="0 0 230 125" aria-label="Edge cells connected when sharing vertices"><g className="mini-links"><line x1="38" y1="35" x2="115" y2="61"/><line x1="38" y1="35" x2="70" y2="105"/><line x1="115" y1="61" x2="70" y2="105"/><line x1="115" y1="61" x2="187" y2="30"/><line x1="115" y1="61" x2="190" y2="101"/><line x1="187" y1="30" x2="190" y2="101"/></g><g className="mini-e-nodes"><circle cx="38" cy="35" r="18"/><circle className="tracer-node" cx="115" cy="61" r="21"/><circle cx="70" cy="105" r="18"/><circle cx="187" cy="30" r="18"/><circle cx="190" cy="101" r="18"/></g><g className="mini-text"><text x="38" y="39">e₁₂</text><text x="115" y="65">e₂₃</text><text x="70" y="109">e₃₁</text><text x="187" y="34">e₂₄</text><text x="190" y="105">e₃₄</text></g></svg>}
+        {index === 2 && <svg viewBox="0 0 230 125" aria-label="Bipartite face to edge incidence graph"><g className="mini-links"><line x1="58" y1="27" x2="25" y2="98"/><line x1="58" y1="27" x2="78" y2="98"/><line x1="58" y1="27" x2="130" y2="98"/><line x1="173" y1="27" x2="78" y2="98"/><line x1="173" y1="27" x2="168" y2="98"/><line x1="173" y1="27" x2="210" y2="98"/></g><g className="mini-f-nodes"><path d="M42 38 L58 11 L74 38 Z"/><path d="M157 38 L173 11 L189 38 Z"/></g><g className="mini-e-nodes"><circle cx="25" cy="98" r="15"/><circle className="tracer-node" cx="78" cy="98" r="18"/><circle cx="130" cy="98" r="15"/><circle cx="168" cy="98" r="15"/><circle cx="210" cy="98" r="15"/></g><g className="mini-text"><text x="58" y="29">f₁</text><text x="173" y="29">f₂</text><text x="25" y="102">e₁₂</text><text x="78" y="102">e₂₃</text><text x="130" y="102">e₃₁</text><text x="168" y="102">e₂₄</text><text x="210" y="102">e₃₄</text></g></svg>}
+        <small>{view.question}</small><em>H<sub>{view.key}</sub><sup>l</sup> rows: {view.rows}</em>
+      </button>)}</div>
+    </section>
+
+    <section className="gccn-compute" aria-label="Concrete processing and rank-level synchronization for edge e23">
+      <div className="gccn-section-heading"><div><p className="eyebrow">FOLLOW e₂₃ THROUGH ONE LAYER</p><h3>Two views make two proposals for the same edge-cell</h3></div><div className="processor-picker" aria-label="Base graph processor">{(["GCN", "GAT", "GIN"] as const).map(model => <button type="button" key={model} className={processor === model ? "active" : ""} onClick={() => { setProcessor(model); setSelected("omega"); setStage(3); }}>{model}</button>)}</div></div>
+      <div className="gccn-pathway">
+        <button type="button" className="path-block path-slice" onClick={() => { setSelected("subtensor"); setStage(2); }}><span>copy current row</span><b>h<sub>e₂₃</sub><sup>l</sup> = {oldEdge}</b><small>same underlying row enters both views</small></button>
+        <div className="path-split">↗<br/>↘</div>
+        <div className="proposal-stack">
+          <button type="button" onClick={() => { setSelected("omega"); setStage(3); }}><span>𝒢<sub>𝒩₂</sub> · edge adjacency</span><b>ω<sub>𝒩₂</sub><sup>{processor}</sup> → z<sub>e₂₃</sub>={adjacencyProposal}</b><small>e₂₃ listens to neighboring edge-cells</small></button>
+          <button type="button" onClick={() => { setSelected("omega"); setStage(3); }}><span>𝒢<sub>𝒩₃</sub> · face incidence</span><b>ω<sub>𝒩₃</sub><sup>{processor}</sup> → z<sub>e₂₃</sub>={incidenceProposal}</b><small>e₂₃ listens to incident face-cells</small></button>
+        </div>
+        <div className="path-join">↘<br/>↗</div>
+        <button type="button" className="path-block path-merge" onClick={() => { setSelected("rankAggregate"); setStage(4); }}><span>align on cell ID e₂₃</span><b>{edgeMix.toFixed(2)}·{adjacencyProposal} + {(1-edgeMix).toFixed(2)}·{incidenceProposal}</b><strong>h<sub>e₂₃</sub><sup>l+1</sup> = {mergedEdge}</strong><small>no other edge is pooled into this writeback</small></button>
+        <div className="path-forward">→</div>
+        <button type="button" className="path-block path-next" onClick={() => { setSelected("layer"); setStage(5); }}><span>next GCCN layer</span><b>e₂₃ starts at {mergedEdge}</b><strong>next proposal ≈ {nextEdge}</strong><small>rank 1; depth l+1</small></button>
+      </div>
+      <label className="gccn-mix-slider"><span><b>⊗ merge for e₂₃</b> favor edge-adjacency <i>{Math.round(edgeMix*100)}%</i> vs face-incidence <i>{Math.round((1-edgeMix)*100)}%</i></span><input aria-label="Balance edge adjacency and face incidence proposals" type="range" min="0" max="1" step="0.05" value={edgeMix} onChange={event => { setEdgeMix(Number(event.target.value)); setSelected("rankAggregate"); setStage(4); }}/></label>
+    </section>
+
+    <section className="gccn-decoder">
+      <div><p className="eyebrow">NOTATION DECODER</p><h3>Four labels that live on different axes</h3></div>
+      <div className="gccn-decoder-grid"><button type="button" onClick={() => setSelected("layer")}><b>superscript l</b><span>network depth</span><small>how many learned passes</small></button><button type="button" onClick={() => setSelected("viewGraph")}><b>subscript 𝒩ᵢ</b><span>relation / graph view</span><small>which cells may talk</small></button><button type="button" onClick={() => setSelected("rank")}><b>rank 0 / 1 / 2</b><span>cell type</span><small>vertex, edge, or face</small></button><button type="button" onClick={() => setSelected("omega")}><b>ω<sub>𝒩</sub></b><span>whole base model</span><small>not just a weight matrix</small></button><button type="button" onClick={() => setSelected("rankAggregate")}><b>⊗<sub>rank</sub></b><span>same-cell merge</span><small>not all-edge pooling</small></button><button type="button" onClick={() => { setSelected("readout"); setStage(6); }}><b>Readout R</b><span>task head</span><small>after the final layer</small></button></div>
+      <div className="gccn-warning"><b>The original pathway’s easiest trap:</b><span>e₂₃ appears twice because two graph views can update it—not because the dataset contains two different e₂₃ cells. Synchronization reunites those computational copies by cell identity.</span></div>
+    </section>
+  </div>;
+}
+
 function DomainExplorer({ setSelected }: { setSelected: (id: TermKey) => void }) {
   const [domain, setDomain] = useState<"graph" | "simplicial" | "hypergraph" | "cc">("graph");
   const copy = {
@@ -404,13 +499,13 @@ export default function Home() {
   const [lens, setLens] = useState<Lens>("sandwich");
   const [selected, setSelected] = useState<TermKey>("G");
   const info = termInfo[selected];
-  const visibleTerms = useMemo<TermKey[]>(() => lens === "sandwich" ? ["G", "H", "W", "K"] : lens === "attention" ? ["G", "A", "hadamard", "H", "W", "transpose", "transport"] : lens === "homp" ? ["messageFn", "message", "neighborAttention", "intra", "channelAttention", "inter", "update"] : lens === "raiseLower" ? ["boundary", "coboundary", "lowerLap", "upperLap", "hodge", "harmonic", "restriction", "extension"] : ["derivative", "localDynamics", "gate", "transport", "flux", "memory", "source", "sink", "rank", "timescale", "stalk"], [lens]);
-  const selectLens = (next: Lens) => { setLens(next); setSelected({ sandwich: "G", attention: "A", homp: "neighborAttention", raiseLower: "hodge", dynamics: "transport" }[next] as TermKey); };
+  const visibleTerms = useMemo<TermKey[]>(() => lens === "sandwich" ? ["G", "H", "W", "K"] : lens === "attention" ? ["G", "A", "hadamard", "H", "W", "transpose", "transport"] : lens === "homp" ? ["messageFn", "message", "neighborAttention", "intra", "channelAttention", "inter", "update"] : lens === "gccn" ? ["complex", "viewGraph", "subtensor", "omega", "rankAggregate", "layer", "readout"] : lens === "raiseLower" ? ["boundary", "coboundary", "lowerLap", "upperLap", "hodge", "harmonic", "restriction", "extension"] : ["derivative", "localDynamics", "gate", "transport", "flux", "memory", "source", "sink", "rank", "timescale", "stalk"], [lens]);
+  const selectLens = (next: Lens) => { setLens(next); setSelected({ sandwich: "G", attention: "A", homp: "neighborAttention", gccn: "complex", raiseLower: "hodge", dynamics: "transport" }[next] as TermKey); };
   return <main>
     <header className="site-header"><div className="brand-mark" aria-hidden="true"><span/><span/><span/></div><div><p className="eyebrow">INTERACTIVE MATH ANATOMY</p><h1>HOMP Anatomy Lab</h1></div><p className="header-note">Click any colored term. Same color = same mathematical job.</p></header>
     <nav className="lens-nav" aria-label="Equation lenses">{(Object.keys(lensNames) as Lens[]).map((key, index) => <button key={key} type="button" onClick={() => selectLens(key)} className={lens === key ? "active" : ""} aria-current={lens === key ? "page" : undefined}><span>0{index + 1}</span>{lensNames[key].short}</button>)}</nav>
     <section className="intro-row"><div><h2>{lensNames[lens].title}</h2><p>{lensNames[lens].note}</p></div><div className="micro-legend"><span><i className="dot cyan"/>structure</span><span><i className="dot yellow"/>state</span><span><i className="dot pink"/>feature mix</span><span><i className="dot orange"/>attention</span><span><i className="dot purple"/>transport/content</span><span><i className="dot green"/>aggregation/source</span></div></section>
-    <div className="main-grid"><section className="visual-panel">{lens === "sandwich" && <OperatorSandwich selected={selected} setSelected={setSelected}/>} {lens === "attention" && <AttentionView selected={selected} setSelected={setSelected}/>} {lens === "homp" && <HompView selected={selected} setSelected={setSelected}/>} {lens === "raiseLower" && <RaiseLowerView selected={selected} setSelected={setSelected}/>} {lens === "dynamics" && <DynamicsView selected={selected} setSelected={setSelected}/>}</section>
+    <div className="main-grid"><section className="visual-panel">{lens === "sandwich" && <OperatorSandwich selected={selected} setSelected={setSelected}/>} {lens === "attention" && <AttentionView selected={selected} setSelected={setSelected}/>} {lens === "homp" && <HompView selected={selected} setSelected={setSelected}/>} {lens === "gccn" && <GccnView selected={selected} setSelected={setSelected}/>} {lens === "raiseLower" && <RaiseLowerView selected={selected} setSelected={setSelected}/>} {lens === "dynamics" && <DynamicsView selected={selected} setSelected={setSelected}/>}</section>
       <aside className={`inspector inspector-${info.color}`} aria-live="polite"><div className="inspector-topline"><span>{info.family}</span><b>{visibleTerms.includes(selected) ? `${visibleTerms.indexOf(selected) + 1}/${visibleTerms.length}` : "related"}</b></div><div className="selected-symbol">{info.symbol}</div><h3>{info.name}</h3><p className="meaning">{info.meaning}</p><div className="inspection-block"><span>WHAT IT DOES</span><p>{info.action}</p></div><div className="inspection-block contrast-block"><span>DON’T CONFLATE</span><p>{info.contrast}</p></div><div className="term-index">{visibleTerms.map((id) => <button type="button" key={id} className={selected === id ? "active" : ""} onClick={() => setSelected(id)} aria-label={`Select ${termInfo[id].name}`}>{termInfo[id].symbol}</button>)}</div></aside>
     </div>
     <section className="concept-map"><div className="concept-title"><p className="eyebrow">THE EIGHT QUESTIONS</p><h2>Every term earns a separate job</h2></div><div className="concept-chain">
@@ -423,6 +518,6 @@ export default function Home() {
       <button type="button" onClick={() => { selectLens("dynamics"); setSelected("memory"); }}><span className="violet">M</span><b>What persists?</b><small>memory</small></button>
       <button type="button" onClick={() => { selectLens("dynamics"); setSelected("source"); }}><span><i className="green">S</i> / <i className="red">D</i></span><b>What enters/leaves?</b><small>balance</small></button>
     </div></section>
-    <footer><p><b>Scope note.</b> Views 1–4 visualize push-forwards, attention-HOMP, and Hodge rank closure inside or across complexes. View 5 is a deliberately broader synthesis with sheaf-like transports and multiscale physics.</p><div className="source-links"><a href="https://tdlbook.org/combinatorial-complex-neural-networks" target="_blank" rel="noreferrer">CCNN definitions ↗</a><a href="https://tdlbook.org/message-passing" target="_blank" rel="noreferrer">HOMP definitions ↗</a><a href="https://arxiv.org/abs/2304.10031" target="_blank" rel="noreferrer">Papillon survey ↗</a><a href="https://openreview.net/pdf?id=LIDvgVjpkZr" target="_blank" rel="noreferrer">Sheaf attention ↗</a></div></footer>
+    <footer><p><b>Scope note.</b> Views 1–5 visualize push-forwards, attention-HOMP, GCCN graph-view synchronization, and Hodge rank closure. View 6 is a deliberately broader synthesis with sheaf-like transports and multiscale physics.</p><div className="source-links"><a href="https://tdlbook.org/combinatorial-complex-neural-networks" target="_blank" rel="noreferrer">CCNN definitions ↗</a><a href="https://tdlbook.org/message-passing" target="_blank" rel="noreferrer">HOMP definitions ↗</a><a href="https://arxiv.org/html/2410.06530v5" target="_blank" rel="noreferrer">TopoTune / GCCN ↗</a><a href="https://arxiv.org/abs/2304.10031" target="_blank" rel="noreferrer">Papillon survey ↗</a><a href="https://openreview.net/pdf?id=LIDvgVjpkZr" target="_blank" rel="noreferrer">Sheaf attention ↗</a></div></footer>
   </main>;
 }
